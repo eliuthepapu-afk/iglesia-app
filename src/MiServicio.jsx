@@ -10,12 +10,17 @@ export default function MiServicio({ oscuro, usuario, eventosGlobales, setListaE
   const archivoInputRef = useRef(null);
 
  const obtenerMisAsignaciones = async () => {
+    if (!usuario || !usuario.nombre) {
+      console.log("Esperando a que cargue el usuario...");
+      return;
+    }
+
     try {
       console.log("Usuario actual:", usuario.nombre);
       const { data, error } = await supabase
         .from("avisos")
         .select("*")
-        .eq("usuario_asignado", usuario.nombre)
+        .eq("usuario_assigned" in {usuario_assigned: ""} ? "usuario_assigned" : "usuario_asignado", usuario.nombre)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
