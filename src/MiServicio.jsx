@@ -9,8 +9,9 @@ export default function MiServicio({ oscuro, usuario, eventosGlobales, setListaE
   const [misAvisosTareas, setMisAvisosTareas] = useState([]);
   const archivoInputRef = useRef(null);
 
-  const obtenerMisAsignaciones = async () => {
+ const obtenerMisAsignaciones = async () => {
     try {
+      console.log("Usuario actual:", usuario.nombre);
       const { data, error } = await supabase
         .from("avisos")
         .select("*")
@@ -18,9 +19,10 @@ export default function MiServicio({ oscuro, usuario, eventosGlobales, setListaE
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+      console.log("Datos encontrados:", data);
       setMisAvisosTareas(data || []);
     } catch (error) {
-      console.error("Error al obtener asignaciones:", error.message);
+      console.error("Error:", error.message);
     }
   };
 
