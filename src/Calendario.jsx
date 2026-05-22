@@ -3,6 +3,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import { X, Plus, Trash2 } from "lucide-react";
+import { supabase } from "./supabaseClient";
 
 const eventosIniciales = [
   { id: "1", title: "Reunión General", date: "2026-05-25", color: "#2563eb", tipo: "Culto", roles: [{ tarea: "Sonido", persona: "Eliuth Alcalá" }, { tarea: "Alabanza", persona: "María Romero" }, { tarea: "Aseo", persona: "Juan Pérez" }] },
@@ -23,7 +24,7 @@ const getRolColor = (tarea) => rolColors[tarea] || "bg-gray-100 text-gray-700";
 export default function Calendario({ oscuro }) {
   const d = oscuro;
   const [eventos, setEventos] = useState(eventosIniciales);
-  const [filtroTipo, setFiltroTipo] = useState(null); // Estado para controlar el filtro
+  const [filtroTipo, setFiltroTipo] = useState(null);
   const [modal, setModal] = useState(false);
   const [detalleModal, setDetalleModal] = useState(false);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
@@ -62,13 +63,33 @@ export default function Calendario({ oscuro }) {
     setForm({ ...form, roles: form.roles.filter((_, idx) => idx !== i) });
   };
 
-  const guardar = () => {
+  const enviarAvisosAutomaticos = async (eventoForm) => {
+    if (!eventoForm.roles || eventoForm.roles.length === 0) return;
+
+    const registrosAvisos = eventoForm.roles.map((r) => ({
+      titulo: `Nueva Asignación: ${eventoForm.title}`,
+      mensaje: `Has sido asignado para la tarea de "${r.tarea}" el día ${eventoForm.date}. Por favor confirma tu asistencia.`,
+      usuario_asignado: r.persona,
+      estado: "pendiente"
+    }));
+
+    try {
+      const { error } = await supabase.from("avisos").insert(registrosAvisos);
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error al generar avisos automáticos:", error.message);
+    }
+  };
+
+  const guardar = async () => {
     if (!form.title || !form.date) return;
     if (eventoSeleccionado) {
       setEventos(eventos.map(e => e.id === eventoSeleccionado ? { ...e, ...form } : e));
     } else {
       setEventos([...eventos, { id: Date.now().toString(), ...form }]);
     }
+    
+    await enviarAvisosAutomaticos(form);
     setModal(false);
   };
 
@@ -79,13 +100,12 @@ export default function Calendario({ oscuro }) {
 
   const manejarFiltro = (tipo) => {
     if (filtroTipo === tipo) {
-      setFiltroTipo(null); // Si repite clic, limpia el filtro
+      setFiltroTipo(null);
     } else {
-      setFiltroTipo(tipo); // Aplica el filtro
+      setFiltroTipo(tipo);
     }
   };
 
-  // Filtramos los eventos antes de mandarlos al FullCalendar
   const eventosFiltrados = eventos.filter(e => {
     if (!filtroTipo) return true;
     return e.tipo.toLowerCase() === filtroTipo.toLowerCase();
@@ -108,7 +128,6 @@ export default function Calendario({ oscuro }) {
         </button>
       </div>
 
-      {/* Leyenda Interactiva con Filtros */}
       <div className={`${card} p-4 mb-4`}>
         <div className="flex justify-between items-center mb-2">
           <p className={`text-xs font-semibold ${d ? "text-zinc-400" : "text-gray-500"}`}>FILTRAR POR TIPO DE EVENTO</p>
@@ -144,20 +163,19 @@ export default function Calendario({ oscuro }) {
       </div>
 
       <div className={`${card} p-4`}>
-      <FullCalendar
-  plugins={[dayGridPlugin, interactionPlugin]}
-  initialView="dayGridMonth"
-  locale="es"
-  buttonText={{ today: "Hoy" }}
-  events={eventosFiltrados.map(e => ({ id: e.id, title: e.title, date: e.date, backgroundColor: e.color, borderColor: e.color }))}
-  dateClick={(info) => abrirNuevo(info.dateStr)}
-  eventClick={abrirDetalle}
-  headerToolbar={{ left: "prev,next today", center: "title", right: "" }}
-  height="auto"
-/>
+        <FullCalendar
+          plugins={[dayGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          locale="es"
+          buttonText={{ today: "Hoy" }}
+          events={eventosFiltrados.map(e => ({ id: e.id, title: e.title, date: e.date, backgroundColor: e.color, borderColor: e.color }))}
+          dateClick={(info) => abrirNuevo(info.dateStr)}
+          eventClick={abrirDetalle}
+          headerToolbar={{ left: "prev,next today", center: "title", right: "" }}
+          height="auto"
+        />
       </div>
 
-      {/* Modal detalle */}
       {detalleModal && eventoDetalle && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
           <div className={`border rounded-2xl p-6 w-full max-w-md mx-4 ${d ? "bg-zinc-800 border-zinc-700" : "bg-white border-gray-200"}`}>
@@ -205,7 +223,6 @@ export default function Calendario({ oscuro }) {
         </div>
       )}
 
-      {/* Modal crear/editar */}
       {modal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
           <div className={`border rounded-2xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto ${d ? "bg-zinc-800 border-zinc-700" : "bg-white border-gray-200"}`}>
@@ -239,7 +256,6 @@ export default function Calendario({ oscuro }) {
                 </div>
               </div>
 
-              {/* Turnos */}
               <div>
                 <label className={label}>Turnos de servicio</label>
                 {form.roles.length > 0 && (

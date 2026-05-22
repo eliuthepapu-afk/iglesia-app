@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Calendario from "./Calendario";
 import Login from "./Login";
 import MiServicio from "./MiServicio";
+import Miembros from "./Miembros";
+import Avisos from "./Avisos";
+import { supabase } from "./supabaseClient";
 import { Users, Calendar, Heart, Bell, BarChart2, Home, Menu, X, Moon, Sun, Clock } from "lucide-react";
 
 const eventosIniciales = [
@@ -20,8 +23,46 @@ export default function App() {
   const [pagina, setPagina] = useState("dashboard");
   const [oscuro, setOscuro] = useState(false);
   const [listaEventos, setListaEventos] = useState(eventosIniciales);
+  const [avisosPendientes, setAvisosPendientes] = useState(0);
   
   const d = oscuro;
+
+  const obtenerAvisosPendientes = async () => {
+    if (!usuario) return;
+    try {
+      const { data, error } = await supabase
+        .from("avisos")
+        .select("id")
+        .eq("usuario_asignado", usuario.nombre)
+        .eq("estado", "pendiente");
+
+      if (error) throw error;
+      setAvisosPendientes(data?.length || 0);
+    } catch (error) {
+      console.error("Error al obtener conteo de avisos:", error.message);
+    }
+  };
+
+  useEffect(() => {
+    if (!usuario) return;
+
+    obtenerAvisosPendientes();
+
+    const canalAlertas = supabase
+      .channel("alertas-menu-principal")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "avisos" },
+        () => {
+          obtenerAvisosPendientes();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalAlertas);
+    };
+  }, [usuario]);
 
   if (!usuario) {
     return <Login alEntrar={setUsuario} oscuro={d} />;
@@ -74,7 +115,21 @@ export default function App() {
         </div>
         <nav className="flex-1 p-4 space-y-1">
           {opcionesMenu.map(({ icon: Icon, label, id }) => (
-            <button key={id} onClick={() => { setPagina(id); setMenuAbierto(false); }} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition text-sm font-medium ${pagina === id ? d ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700" : d ? "text-zinc-300 hover:bg-zinc-700 hover:text-white" : "text-gray-600 hover:bg-blue-50 hover:text-blue-700"}`}><Icon size={18} />{label}</button>
+            <button 
+              key={id} 
+              onClick={() => { setPagina(id); setMenuAbierto(false); }} 
+              className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg transition text-sm font-medium ${pagina === id ? d ? "bg-blue-600 text-white" : "bg-blue-100 text-blue-700" : d ? "text-zinc-300 hover:bg-zinc-700 hover:text-white" : "text-gray-600 hover:bg-blue-50 hover:text-blue-700"}`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon size={18} />
+                {label}
+              </div>
+              {id === "servicio" && avisosPendientes > 0 && (
+                <span className="bg-red-500 text-white text-[11px] font-bold h-5 min-w-5 px-1.5 rounded-full flex items-center justify-center animate-pulse">
+                  {avisosPendientes}
+                </span>
+              )}
+            </button>
           ))}
         </nav>
         <div className={`p-4 border-t flex flex-col gap-3 ${d ? "border-zinc-700" : "border-gray-200"}`}>
@@ -112,6 +167,10 @@ export default function App() {
           <Calendario oscuro={oscuro} eventosGlobales={listaEventos} setListaEventos={setListaEventos} usuario={usuario} />
         ) : pagina === "servicio" ? (
           <MiServicio oscuro={oscuro} usuario={usuario} eventosGlobales={listaEventos} setListaEventos={setListaEventos} />
+        ) : pagina === "miembros" ? (
+          <Miembros oscuro={oscuro} />
+        ) : pagina === "avisos" ? (
+          <Avisos />
         ) : (
           <div className="p-6 space-y-6">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
