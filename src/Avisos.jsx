@@ -55,7 +55,7 @@ export default function Avisos() {
     setPermisoPush(respuesta);
   };
 
- const dispararNotificacionFlotante = (title, body) => {
+  const dispararNotificacionFlotante = (title, body) => {
     if ('serviceWorker' in navigator && Notification.permission === 'granted') {
       navigator.serviceWorker.ready.then((registration) => {
         registration.showNotification(title, {
@@ -76,11 +76,15 @@ export default function Avisos() {
 
     setCargando(true);
     try {
+      // AQUÍ ESTÁ LA MAGIA: Agregamos el estado 'pendiente' para que Supabase lo acepte
       const { error } = await supabase
         .from('avisos')
-        .insert([{ titulo, mensaje }]);
+        .insert([{ titulo: titulo, mensaje: mensaje, estado: 'pendiente' }]);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error detallado de Supabase:', error);
+        throw error;
+      }
 
       setTitulo('');
       setMensaje('');
